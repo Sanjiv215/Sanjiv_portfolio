@@ -6,8 +6,8 @@ import { scrollToTarget } from "@/lib/scroll";
 export default function Hero() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const heroRef = useRef<HTMLElement>(null);
-  const [isMuted, setIsMuted] = useState(true);
-  const [needsUnlock, setNeedsUnlock] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [needsUnlock, setNeedsUnlock] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -23,7 +23,7 @@ export default function Hero() {
           setNeedsUnlock(false);
         })
         .catch(() => {
-          // Blocked by browser policy -> fallback to muted autoplay
+          // Blocked by browser autoplay policy -> fallback to muted until first interaction
           video.muted = true;
           video.play().catch(() => {});
           setIsMuted(true);
@@ -31,7 +31,7 @@ export default function Hero() {
         });
     }
 
-    // Unlock on first interaction
+    // Unlock audio on first touch/interaction on mobile or desktop
     const unlockAudio = () => {
       if (videoRef.current) {
         videoRef.current.muted = false;
@@ -44,14 +44,22 @@ export default function Hero() {
     };
 
     const cleanupListeners = () => {
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
       window.removeEventListener("touchend", unlockAudio);
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("scroll", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      document.removeEventListener("touchstart", unlockAudio);
     };
 
+    window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+    window.addEventListener("touchend", unlockAudio, { once: true, passive: true });
     window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("click", unlockAudio, { once: true });
+    window.addEventListener("scroll", unlockAudio, { once: true, passive: true });
     window.addEventListener("keydown", unlockAudio, { once: true });
-    window.addEventListener("touchend", unlockAudio, { once: true });
+    document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
 
     return () => {
       cleanupListeners();
@@ -100,13 +108,13 @@ export default function Hero() {
         <video
           ref={videoRef}
           className="hero-video"
+          autoPlay
           playsInline
           loop
-          muted
           preload="auto"
         >
-          <source src="/hero/hero.webm" type="video/webm" />
           <source src="/hero/hero.mp4" type="video/mp4" />
+          <source src="/hero/hero.webm" type="video/webm" />
         </video>
 
         <button
