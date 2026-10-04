@@ -1,68 +1,85 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PROFILE } from "@/lib/data";
 import { scrollToTarget } from "@/lib/scroll";
 
 export default function Hero() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const heroRef = useRef<HTMLElement>(null);
-  const [isMuted, setIsMuted] = useState(false);
-  const [needsUnlock, setNeedsUnlock] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [needsUnlock, setNeedsUnlock] = useState(true);
+
+  const enableAudio = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = false;
+    video.volume = 1.0;
+    video
+      .play()
+      .then(() => {
+        setIsMuted(false);
+        setNeedsUnlock(false);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Try autoplay with audio
+    video.volume = 1.0;
+
+    // Start video playback immediately (muted to guarantee autoplay starts on mobile)
+    video.muted = true;
+    video.play().catch(() => {});
+
+    // Try unmuting immediately in case autoplay with audio is allowed by browser
     video.muted = false;
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise
+    video
+      .play()
+      .then(() => {
+        setIsMuted(false);
+        setNeedsUnlock(false);
+      })
+      .catch(() => {
+        // Autoplay with sound blocked -> fallback to muted until user interaction
+        video.muted = true;
+        video.play().catch(() => {});
+        setIsMuted(true);
+        setNeedsUnlock(true);
+      });
+
+    // Handle user interaction to unlock audio reliably
+    const handleInteraction = () => {
+      const v = videoRef.current;
+      if (!v) return;
+      v.muted = false;
+      v.volume = 1.0;
+      v.play()
         .then(() => {
           setIsMuted(false);
           setNeedsUnlock(false);
+          removeListeners();
         })
-        .catch(() => {
-          // Blocked by browser autoplay policy -> fallback to muted until first interaction
-          video.muted = true;
-          video.play().catch(() => {});
-          setIsMuted(true);
-          setNeedsUnlock(true);
-        });
-    }
-
-    // Unlock audio on first touch/interaction on mobile or desktop
-    const unlockAudio = () => {
-      if (videoRef.current) {
-        videoRef.current.muted = false;
-        videoRef.current.play().then(() => {
-          setIsMuted(false);
-          setNeedsUnlock(false);
-        }).catch(() => {});
-      }
-      cleanupListeners();
+        .catch(() => {});
     };
 
-    const cleanupListeners = () => {
-      window.removeEventListener("touchstart", unlockAudio);
-      window.removeEventListener("touchend", unlockAudio);
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("click", unlockAudio);
-      window.removeEventListener("scroll", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-      document.removeEventListener("touchstart", unlockAudio);
+    const events = ["click", "touchstart", "touchend", "pointerdown", "pointerup", "keydown"];
+    const removeListeners = () => {
+      events.forEach((evt) => {
+        window.removeEventListener(evt, handleInteraction);
+        document.removeEventListener(evt, handleInteraction);
+      });
     };
 
-    window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
-    window.addEventListener("touchend", unlockAudio, { once: true, passive: true });
-    window.addEventListener("pointerdown", unlockAudio, { once: true });
-    window.addEventListener("click", unlockAudio, { once: true });
-    window.addEventListener("scroll", unlockAudio, { once: true, passive: true });
-    window.addEventListener("keydown", unlockAudio, { once: true });
-    document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+    events.forEach((evt) => {
+      window.addEventListener(evt, handleInteraction, { passive: true });
+      document.addEventListener(evt, handleInteraction, { passive: true });
+    });
 
     return () => {
-      cleanupListeners();
+      removeListeners();
     };
   }, []);
 
@@ -87,19 +104,36 @@ export default function Hero() {
     return () => observer.disconnect();
   }, []);
 
-  const toggleSound = () => {
-    if (!videoRef.current) return;
-    const nextMuted = !videoRef.current.muted;
-    videoRef.current.muted = nextMuted;
-    setIsMuted(nextMuted);
-    if (!nextMuted) {
-      setNeedsUnlock(false);
-      videoRef.current.play().catch(() => {});
+  const toggleSound = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.muted) {
+      video.muted = false;
+      video.volume = 1.0;
+      video
+        .play()
+        .then(() => {
+          setIsMuted(false);
+          setNeedsUnlock(false);
+        })
+        .catch(() => {});
+    } else {
+      video.muted = true;
+      setIsMuted(true);
     }
   };
 
   return (
-    <section id="top" ref={heroRef} className="hero-section">
+    <section
+      id="top"
+      ref={heroRef}
+      className="hero-section"
+      onClick={() => {
+        if (isMuted) enableAudio();
+      }}
+    >
       <div className="hero-ghost" aria-hidden="true">
         {PROFILE.firstName.toUpperCase()}
       </div>
@@ -111,6 +145,7 @@ export default function Hero() {
           autoPlay
           playsInline
           loop
+          muted
           preload="auto"
         >
           <source src="/hero/hero.mp4" type="video/mp4" />
