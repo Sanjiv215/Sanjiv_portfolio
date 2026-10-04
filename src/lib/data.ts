@@ -170,7 +170,7 @@ export const PROJECTS = [
     title: "My Portfolio",
     kicker: "Vite · API",
     description: "My portfolio, created using the latest simple Vite with some connection to an API and also deployed.",
-    link: "https://react-portfolio-wine-tau.vercel.app/#home",
+    link: "https://sanjivportfolio.vercel.app/",
     linkLabel: "View live",
   },
 ];
