@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+.venv
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+assets/hero-check.jpg
